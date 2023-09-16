@@ -1,19 +1,19 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <EEPROM.h>
 
 #define JOYSTICK_VRX A3
 #define JOYSTICK_VRY A2
 #define JOYSTICK_SW 7
 
-int press;
-int nextStep = 0;
-int currentHour = 0;
-char buf[10] = { 0 };
+int press = 0;
 int vrx = 0;
 int vry = 0;
 int swState = 0;
-
-boolean flag = false;
+int hour = 0;
+int minute = 0;
+int second = 0;
+int isAmPm = 0;
 
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -33,27 +33,42 @@ void setup() {
 
   pinMode(JOYSTICK_SW, INPUT_PULLUP);
 
-  delay(500);
-
-  pinMode(13, OUTPUT);  // test
-  Serial.begin(9600);   // test
+  Serial.begin(9600);
+  while (!Serial) {
+  }
 }
 
 void loop() {
-  vrx = analogRead(JOYSTICK_VRX);
-  vry = analogRead(JOYSTICK_VRY);
   swState = digitalRead(JOYSTICK_SW);
 
-  int vrxMap = map(vrx, 0, 1023, 0, 12);
-  int vryMap = map(vry, 0, 1023, 0, 60);
+  Serial.print("JoyStick switch START : ");
+  Serial.println(swState);
 
-  Serial.print("sw before: ");  //test
-  Serial.println(swState);      //test
+  int vrxMap = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+  int vryMap = map(analogRead(JOYSTICK_VRY), 0, 1023, 0, 60);
+
+  // Serial.print("VRX for Hour (0 ~ 12) : ");
+  // Serial.println(vrxMap);
+
+  // Serial.print("VRY for Minute & Second (0 ~ 60) : ");
+  // Serial.println(vryMap);
+
+  Serial.print("Press START : ");
+  Serial.println(press);
+
+  Serial.println();
+  Serial.print("Hour: ");
+  Serial.println(hour);
+  Serial.print("Minite: ");
+  Serial.println(minute);
+  Serial.print("Second: ");
+  Serial.println(second);
+  Serial.println();
+
 
   delay(500);
 
-
-  // 1
+  // Set start
   if (swState == LOW) {
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -61,43 +76,80 @@ void loop() {
     lcd.setCursor(0, 1);
     lcd.print("AM 00: 00: 00");
 
-    Serial.print("1 sw after: ");  //test
-    Serial.println(swState);       //test
+    Serial.print("Set START : ");
+    Serial.println(swState);
+
     press = 1;
+
+    Serial.print("Press 1 (AM/PM): ");
+    Serial.println(swState);
   }
 
-  // 2
+  // Set AM/PM
   while (press == 1) {
-    lcd.setCursor(0, 1);
-    lcd.print("  ");
-    delay(300);
-    lcd.setCursor(0, 1);
-    lcd.print("AM");
-    delay(300);
-    if (digitalRead(JOYSTICK_SW) == LOW) {
-      press = 2;
-      Serial.print("2 sw after: ");              //test
-      Serial.println(digitalRead(JOYSTICK_SW));  //test
+    // lcd.setCursor(0, 1);
+    // lcd.print("  ");
+    // delay(300);
+    // lcd.setCursor(0, 1);
+    // lcd.print("AM");
+    // delay(300);
+
+
+    Serial.print("Press 1 with swState : ");
+    Serial.println(swState);
+
+    int presentVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 10);
+
+    Serial.print("presentVRX : ");
+    Serial.println(presentVRX);
+
+    while (press == 1) {
+      int newVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 10);
+
+      Serial.println();
+      Serial.print("presentVRX : ");
+      Serial.println(presentVRX);
+      Serial.print("newVRX : ");
+      Serial.println(newVRX);
+      Serial.println();
+
+      if (newVRX > presentVRX) {
+        isAmPm = 2;
+        for (int i = 0; i < 5; i++) {
+          lcd.setCursor(0, 1);
+          lcd.print("  ");
+          delay(300);
+          lcd.setCursor(0, 1);
+          lcd.print("PM");
+          delay(300);
+        }
+      } else if (newVRX < presentVRX) {
+        isAmPm = 1;
+        for (int i = 0; i < 5; i++) {
+          lcd.setCursor(0, 1);
+          lcd.print("  ");
+          delay(300);
+          lcd.setCursor(0, 1);
+          lcd.print("AM");
+          delay(300);
+        }
+      }
+
+      if (digitalRead(JOYSTICK_SW) == LOW) {
+        press = 2;
+
+        Serial.print("Press 2 with swState: ");
+        Serial.println(swState);
+
+        Serial.print("isAmPM : ");
+        Serial.println(isAmPm);
+        Serial.println();
+      }
     }
   }
 
-
-  // 3
+  // Set Hour
   while (press == 2) {
-    lcd.setCursor(0, 1);
-    lcd.print("  ");
-    delay(300);
-    lcd.setCursor(0, 1);
-    lcd.print("PM");
-    delay(300);
-    if (digitalRead(JOYSTICK_SW) == LOW) {
-      press = 3;
-      Serial.print("3 sw after: ");              //test
-      Serial.println(digitalRead(JOYSTICK_SW));  //test
-    }
-  }
-  // 4
-  while (press == 3) {
     lcd.setCursor(3, 1);
     lcd.print("  ");
     delay(300);
@@ -106,14 +158,68 @@ void loop() {
     lcd.setCursor(5, 1);
     lcd.print(":");
     delay(300);
-    if (digitalRead(JOYSTICK_SW) == LOW) {
-      press = 4;
-      Serial.print("4 sw after: ");              //test
-      Serial.println(digitalRead(JOYSTICK_SW));  //test
+
+    int presentVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+    int pastVRX = presentVRX;
+
+    Serial.print("presentVRX : ");
+    Serial.println(presentVRX);
+
+    while (press == 2) {
+      int newVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+
+      Serial.print("presentVRX : ");
+      Serial.println(presentVRX);
+
+      Serial.print("newVRX : ");
+      Serial.println(newVRX);
+
+      if (newVRX > pastVRX) {
+        hour++;
+      } else if (newVRX < pastVRX) {
+        hour--;
+      }
+
+      if (hour < 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour = 0;
+      }
+
+      if (hour < 10) {
+        lcd.setCursor(3, 1);
+        lcd.print("  ");
+        delay(300);
+        lcd.setCursor(3, 1);
+        lcd.print("0");
+        lcd.setCursor(4, 1);
+        lcd.print(hour);
+        delay(300);
+      } else {
+        lcd.setCursor(3, 1);
+        lcd.print("  ");
+        delay(300);
+        lcd.setCursor(3, 1);
+        lcd.print(hour);
+        delay(300);
+      }
+
+
+      //pastVRX = newVRX;
+
+      Serial.print("hour");
+      Serial.println(hour);
+
+      if (digitalRead(JOYSTICK_SW) == LOW) {
+        press = 3;
+        Serial.print("Press 4 (Minute) : ");
+        Serial.println(digitalRead(JOYSTICK_SW));
+      }
     }
   }
-  // 5
-  while (press == 4) {
+
+  // Set Minute
+  while (press == 3) {
     lcd.setCursor(7, 1);
     lcd.print("  ");
     delay(300);
@@ -122,32 +228,143 @@ void loop() {
     lcd.setCursor(9, 1);
     lcd.print(":");
     delay(300);
-    if (digitalRead(JOYSTICK_SW) == LOW) {
-      press = 5;
-      Serial.print("5 sw after: ");              //test
-      Serial.println(digitalRead(JOYSTICK_SW));  //test
+
+    int presentVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+    int pastVRX = presentVRX;
+
+    Serial.print("presentVRX : ");
+    Serial.println(presentVRX);
+
+    while (press == 3) {
+      int newVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+
+      Serial.print("presentVRX : ");
+      Serial.println(presentVRX);
+
+      Serial.print("newVRX : ");
+      Serial.println(newVRX);
+
+      if (newVRX > pastVRX) {
+        minute++;
+      } else if (newVRX < pastVRX) {
+        minute--;
+      }
+
+      if (minute < 0) {
+        minute = 60;
+      } else if (minute > 60) {
+        minute = 0;
+      }
+
+      if (minute < 10) {
+        lcd.setCursor(7, 1);
+        lcd.print("  ");
+        delay(300);
+        lcd.setCursor(7, 1);
+        lcd.print("0");
+        lcd.setCursor(8, 1);
+        lcd.print(minute);
+        delay(300);
+      } else {
+        lcd.setCursor(7, 1);
+        lcd.print("  ");
+        delay(300);
+        lcd.setCursor(7, 1);
+        lcd.print(minute);
+        delay(300);
+      }
+
+
+      Serial.print("minute");
+      Serial.println(minute);
+      if (digitalRead(JOYSTICK_SW) == LOW) {
+        press = 4;
+        Serial.print("Press 4 (Second) : ");
+        Serial.println(digitalRead(JOYSTICK_SW));
+      }
     }
   }
-  // 6
-  while (press == 5) {
+
+
+  // Set Second
+  while (press == 4) {
     lcd.setCursor(11, 1);
     lcd.print("  ");
     delay(300);
     lcd.setCursor(11, 1);
     lcd.print("00");
     delay(300);
-    if (digitalRead(JOYSTICK_SW) == LOW) {
-      press = 6;
-      Serial.print("7 sw after: ");              //test
-      Serial.println(digitalRead(JOYSTICK_SW));  //test
+
+
+    int presentVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+    int pastVRX = presentVRX;
+
+    Serial.print("presentVRX : ");
+    Serial.println(presentVRX);
+
+    while (press == 4) {
+      int newVRX = map(analogRead(JOYSTICK_VRX), 0, 1023, 0, 12);
+
+      Serial.print("presentVRX : ");
+      Serial.println(presentVRX);
+
+      Serial.print("newVRX : ");
+      Serial.println(newVRX);
+
+      if (newVRX > pastVRX) {
+        second++;
+      } else if (newVRX < pastVRX) {
+        second--;
+      }
+
+      if (second < 0) {
+        second = 60;
+      } else if (second > 60) {
+        second = 0;
+      }
+
+      if (second < 10) {
+        lcd.setCursor(11, 1);
+        lcd.print("  ");
+        delay(300);
+        lcd.setCursor(11, 1);
+        lcd.print("0");
+        lcd.setCursor(12, 1);
+        lcd.print(second);
+        delay(300);
+      } else {
+        lcd.setCursor(11, 1);
+        lcd.print("  ");
+        delay(300);
+        lcd.setCursor(11, 1);
+        lcd.print(second);
+        delay(300);
+      }
+      Serial.print("second");
+      Serial.println(second);
+      if (digitalRead(JOYSTICK_SW) == LOW) {
+        press = 5;
+        Serial.print("Press 5 (Set Complete) : ");
+        Serial.println(digitalRead(JOYSTICK_SW));
+      }
     }
   }
 
+  // Set Complete
+  if (press == 5) {
+    lcd.clear();
+    lcd.setCursor(1, 1);
+    lcd.print("Setup Complete!");
 
-  // 0
-  if (press == 6) {
-    press = 0;
-    Serial.print("0 sw after: ");              //test
-    Serial.println(digitalRead(JOYSTICK_SW));  //test
+
+    delay(2000);
+
+    //press = 0;
+
+    Serial.print("Set complete! (press = 0) ");
+    Serial.println(digitalRead(JOYSTICK_SW));
   }
+}
+
+void saveTime(int h, int m, int s) {
 }
